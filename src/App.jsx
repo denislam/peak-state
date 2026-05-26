@@ -309,7 +309,17 @@ export default function App() {
 
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="min-w-0">
-              <label className="text-xs text-zinc-500 mb-1 block">Bedtime</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-zinc-500">Bedtime</label>
+                {viewLog.bedtime && (
+                  <button
+                    onClick={() => saveLog(viewDate, { bedtime: '' })}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
               <input
                 type="time"
                 value={viewLog.bedtime || ''}
@@ -318,7 +328,17 @@ export default function App() {
               />
             </div>
             <div className="min-w-0">
-              <label className="text-xs text-zinc-500 mb-1 block">{isFuture ? 'Planned wake' : 'Wake'}</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-zinc-500">{isFuture ? 'Planned wake' : 'Wake'}</label>
+                {viewLog.waketime && (
+                  <button
+                    onClick={() => saveLog(viewDate, { waketime: '' })}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
               <input
                 type="time"
                 value={viewLog.waketime || ''}
