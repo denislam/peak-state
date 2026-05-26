@@ -307,23 +307,23 @@ export default function App() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="min-w-0">
               <label className="text-xs text-zinc-500 mb-1 block">Bedtime</label>
               <input
                 type="time"
                 value={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="w-full min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label className="text-xs text-zinc-500 mb-1 block">{isFuture ? 'Planned wake' : 'Wake'}</label>
               <input
                 type="time"
                 value={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="w-full min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
             </div>
           </div>
