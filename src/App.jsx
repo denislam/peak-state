@@ -321,6 +321,7 @@ export default function App() {
                 )}
               </div>
               <input
+                key={`bedtime-${viewKey}-${viewLog.bedtime ? 'set' : 'empty'}`}
                 type="time"
                 value={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
@@ -340,6 +341,7 @@ export default function App() {
                 )}
               </div>
               <input
+                key={`waketime-${viewKey}-${viewLog.waketime ? 'set' : 'empty'}`}
                 type="time"
                 value={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
