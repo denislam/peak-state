@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Dumbbell, ExternalLink, Flame, Moon,
-  ChevronLeft, ChevronRight, Bed, X, Pencil, RotateCcw,
+  ChevronLeft, ChevronRight, Bed, X, Pencil, RotateCcw, Settings,
 } from 'lucide-react';
 import { DAY_TYPES, TYPE_ORDER } from './schedule.js';
-import { DEFAULT_SCHEDULE, CLAUDE_CHAT_URL, WORKOUT_PROMPT } from './config.js';
+import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
 
@@ -14,23 +14,30 @@ export default function App() {
   const [viewDate, setViewDate] = useState(new Date());
   const [saveError, setSaveError] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [workoutUrl, setWorkoutUrl] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    const finish = (data) => {
+    const finish = (data, url) => {
       if (cancelled) return;
       if (data) setLogs(data);
+      if (url) setWorkoutUrl(url);
       setLoaded(true);
     };
-    const timeout = setTimeout(() => finish(null), 2500);
+    const timeout = setTimeout(() => finish(null, ''), 2500);
     (async () => {
       try {
-        const data = await storage.getLogs();
+        const [data, url] = await Promise.all([
+          storage.getLogs(),
+          storage.getWorkoutUrl(),
+        ]);
         clearTimeout(timeout);
-        finish(data);
+        finish(data, url);
       } catch {
         clearTimeout(timeout);
-        finish(null);
+        finish(null, '');
       }
     })();
     return () => { cancelled = true; clearTimeout(timeout); };
@@ -120,10 +127,23 @@ export default function App() {
     };
   };
 
-  const launchCoach = async () => {
-    try { await navigator.clipboard.writeText(WORKOUT_PROMPT); } catch {}
-    const url = `${CLAUDE_CHAT_URL}?q=${encodeURIComponent(WORKOUT_PROMPT)}`;
-    window.open(url, '_blank');
+  const launchWorkout = () => {
+    if (!workoutUrl) return;
+    window.open(workoutUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openSettings = () => {
+    setUrlDraft(workoutUrl);
+    setShowSettings(true);
+  };
+
+  const saveWorkoutUrl = async () => {
+    let url = urlDraft.trim();
+    if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+    setWorkoutUrl(url);
+    const ok = await storage.setWorkoutUrl(url);
+    setSaveError(!ok);
+    setShowSettings(false);
   };
 
   const setDayType = (typeKey) => {
@@ -157,6 +177,16 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-8">
       <div className="max-w-md mx-auto px-4 pt-6">
+        <div className="flex justify-end mb-2 -mr-1">
+          <button
+            onClick={openSettings}
+            aria-label="Settings"
+            className="p-1.5 text-zinc-500 hover:text-zinc-200 active:scale-95 transition"
+          >
+            <Settings size={18} />
+          </button>
+        </div>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <button
@@ -240,14 +270,24 @@ export default function App() {
               </button>
 
               {!isFuture && (
-                <button
-                  onClick={launchCoach}
-                  className={`w-full mt-3 ${viewDay.accent} text-zinc-950 rounded-xl py-3 px-4 font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition hover:brightness-110`}
-                >
-                  <Dumbbell size={18} />
-                  Start workout
-                  <ExternalLink size={14} />
-                </button>
+                workoutUrl ? (
+                  <button
+                    onClick={launchWorkout}
+                    className={`w-full mt-3 ${viewDay.accent} text-zinc-950 rounded-xl py-3 px-4 font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition hover:brightness-110`}
+                  >
+                    <Dumbbell size={18} />
+                    Start workout
+                    <ExternalLink size={14} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={openSettings}
+                    className="w-full mt-3 bg-zinc-800 text-zinc-400 border border-dashed border-zinc-700 rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 hover:bg-zinc-700/50 hover:text-zinc-200 active:scale-[0.98] transition"
+                  >
+                    <Settings size={14} />
+                    Set workout link
+                  </button>
+                )
               )}
             </>
           )}
@@ -420,7 +460,7 @@ export default function App() {
         )}
 
         <div className="text-center text-[10px] text-zinc-700 mt-6">
-          Jeff Nippard UL/PPL hybrid · data stays on your device
+          Built for discipline, not dopamine · Data stays on your device
         </div>
       </div>
 
@@ -484,6 +524,66 @@ export default function App() {
                 Reset to plan default
               </button>
             )}
+
+            <div className="h-2" />
+          </div>
+        </div>
+      )}
+
+      {/* Settings (bottom sheet) */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowSettings(false)}
+          />
+          <div className="relative w-full max-w-md bg-zinc-900 rounded-t-3xl border-t border-zinc-800 p-5 max-h-[85vh] overflow-y-auto animate-slide-up">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="text-base font-semibold">Settings</div>
+                <div className="text-xs text-zinc-500 mt-0.5">
+                  Workout link opens in a new tab.
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-2 -mr-2 -mt-1 text-zinc-400 hover:text-zinc-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-2">
+              Start workout link
+            </label>
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://…"
+              value={urlDraft}
+              onChange={(e) => setUrlDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveWorkoutUrl(); }}
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+              autoFocus
+            />
+            <div className="text-[11px] text-zinc-500 mt-2">
+              Paste any URL — a Claude chat, a YouTube playlist, your training app, etc.
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setShowSettings(false)}
+                className="flex-1 py-3 text-sm text-zinc-300 rounded-xl border border-zinc-800 hover:bg-zinc-800/50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveWorkoutUrl}
+                className="flex-1 py-3 text-sm font-semibold text-zinc-950 bg-zinc-100 rounded-xl hover:brightness-110 active:scale-[0.99] transition"
+              >
+                Save
+              </button>
+            </div>
 
             <div className="h-2" />
           </div>

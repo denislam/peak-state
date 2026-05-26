@@ -2,6 +2,7 @@
 // Swap this out later for Cloudflare D1/KV if you want cross-device sync.
 
 const KEY = 'daily-logs';
+const URL_KEY = 'workout-url';
 
 export const storage = {
   async getLogs() {
@@ -15,6 +16,22 @@ export const storage = {
   async setLogs(logs) {
     try {
       localStorage.setItem(KEY, JSON.stringify(logs));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async getWorkoutUrl() {
+    try {
+      return localStorage.getItem(URL_KEY) || '';
+    } catch {
+      return '';
+    }
+  },
+  async setWorkoutUrl(url) {
+    try {
+      if (url) localStorage.setItem(URL_KEY, url);
+      else localStorage.removeItem(URL_KEY);
       return true;
     } catch {
       return false;

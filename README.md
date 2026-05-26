@@ -48,19 +48,15 @@ Output goes to `dist/`.
 
 ## Configuration
 
-The "Start workout" button opens a specific Claude chat URL. To change it, edit `src/config.js`:
-
-```js
-export const CLAUDE_CHAT_URL = 'https://claude.ai/chat/YOUR-CHAT-ID';
-export const WORKOUT_PROMPT = "Start today's workout";
-```
+The "Start workout" button opens any URL you set — a Claude chat, a YouTube playlist, your training app, etc. Tap the gear icon in the top-right of the app and paste a URL. It's stored locally per browser.
 
 ## Data
 
-All data is stored in `localStorage` under the key `daily-logs`. To reset, open DevTools and run:
+All data is stored in `localStorage` — logs under `daily-logs`, your workout link under `workout-url`. To reset, open DevTools and run:
 
 ```js
 localStorage.removeItem('daily-logs');
+localStorage.removeItem('workout-url');
 ```
 
 ## Roadmap ideas
