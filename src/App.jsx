@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2, Circle, Dumbbell, ExternalLink, Flame, Moon,
   ChevronLeft, ChevronRight, Bed, X, Pencil, RotateCcw, Settings,
@@ -17,6 +17,17 @@ export default function App() {
   const [workoutUrl, setWorkoutUrl] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
+  const bedtimeRef = useRef(null);
+  const waketimeRef = useRef(null);
+
+  const clearTimeField = (field, ref) => {
+    if (ref.current) {
+      ref.current.value = '';
+      ref.current.dispatchEvent(new Event('input', { bubbles: true }));
+      ref.current.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    saveLog(viewDate, { [field]: '' });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -309,44 +320,38 @@ export default function App() {
 
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-zinc-500">Bedtime</label>
-                {viewLog.bedtime && (
-                  <button
-                    onClick={() => saveLog(viewDate, { bedtime: '' })}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
-                  >
-                    clear
-                  </button>
-                )}
-              </div>
+              <label className="text-xs text-zinc-500 mb-1 block">Bedtime</label>
               <input
-                key={`bedtime-${viewKey}-${viewLog.bedtime ? 'set' : 'empty'}`}
+                ref={bedtimeRef}
                 type="time"
                 value={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
+              <button
+                onClick={() => clearTimeField('bedtime', bedtimeRef)}
+                disabled={!viewLog.bedtime}
+                className="mt-1 w-full text-xs py-1 rounded-md font-mono tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition"
+              >
+                --:-- --
+              </button>
             </div>
             <div className="min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-zinc-500">{isFuture ? 'Planned wake' : 'Wake'}</label>
-                {viewLog.waketime && (
-                  <button
-                    onClick={() => saveLog(viewDate, { waketime: '' })}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
-                  >
-                    clear
-                  </button>
-                )}
-              </div>
+              <label className="text-xs text-zinc-500 mb-1 block">{isFuture ? 'Planned wake' : 'Wake'}</label>
               <input
-                key={`waketime-${viewKey}-${viewLog.waketime ? 'set' : 'empty'}`}
+                ref={waketimeRef}
                 type="time"
                 value={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
+              <button
+                onClick={() => clearTimeField('waketime', waketimeRef)}
+                disabled={!viewLog.waketime}
+                className="mt-1 w-full text-xs py-1 rounded-md font-mono tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition"
+              >
+                --:-- --
+              </button>
             </div>
           </div>
 
