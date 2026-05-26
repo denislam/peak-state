@@ -1,4 +1,4 @@
-# Health Tracker App
+# Peak State
 
 A minimalist gym + sleep tracker built around a Jeff Nippard UL/PPL hybrid split. Mobile-first, dark mode, persists locally.
 
@@ -38,13 +38,13 @@ Output goes to `dist/`.
 
 1. Push this repo to GitHub.
 2. In the Cloudflare dashboard: **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-3. Pick the `health-tracker-app` repo.
+3. Pick the `peak-state` repo.
 4. Build settings:
    - **Framework preset:** Vite
    - **Build command:** `npm run build`
    - **Build output directory:** `dist`
    - **Node version:** 20 (set via `NODE_VERSION` env var if needed)
-5. Save and deploy. You'll get a `*.pages.dev` URL — add it to your phone's home screen for app-like access.
+5. Save and deploy. You'll get a `peak-state.pages.dev` URL — add it to your phone's home screen for app-like access.
 
 ## Configuration
 
