@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CheckCircle2, Circle, Dumbbell, ExternalLink, Flame, Moon,
   ChevronLeft, ChevronRight, Bed, X, Pencil, RotateCcw, Settings,
@@ -7,6 +7,20 @@ import { DAY_TYPES, TYPE_ORDER } from './schedule.js';
 import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
+
+const TIME_OPTIONS = (() => {
+  const opts = [{ value: '', label: '--:-- --' }];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m++) {
+      const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const ap = h >= 12 ? 'PM' : 'AM';
+      const label = `${h12}:${String(m).padStart(2, '0')} ${ap}`;
+      opts.push({ value, label });
+    }
+  }
+  return opts;
+})();
 
 export default function App() {
   const [logs, setLogs] = useState({});
@@ -17,17 +31,6 @@ export default function App() {
   const [workoutUrl, setWorkoutUrl] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
-  const bedtimeRef = useRef(null);
-  const waketimeRef = useRef(null);
-
-  const clearTimeField = (field, ref) => {
-    if (ref.current) {
-      ref.current.value = '';
-      ref.current.dispatchEvent(new Event('input', { bubbles: true }));
-      ref.current.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    saveLog(viewDate, { [field]: '' });
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -321,37 +324,27 @@ export default function App() {
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="min-w-0">
               <label className="text-xs text-zinc-500 mb-1 block">Bedtime</label>
-              <input
-                ref={bedtimeRef}
-                type="time"
+              <select
                 value={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
-              />
-              <button
-                onClick={() => clearTimeField('bedtime', bedtimeRef)}
-                disabled={!viewLog.bedtime}
-                className="mt-1 w-full text-xs py-1 rounded-md font-mono tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition"
               >
-                --:-- --
-              </button>
+                {TIME_OPTIONS.map(({ value, label }) => (
+                  <option key={value || 'none'} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
             <div className="min-w-0">
               <label className="text-xs text-zinc-500 mb-1 block">{isFuture ? 'Planned wake' : 'Wake'}</label>
-              <input
-                ref={waketimeRef}
-                type="time"
+              <select
                 value={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
-              />
-              <button
-                onClick={() => clearTimeField('waketime', waketimeRef)}
-                disabled={!viewLog.waketime}
-                className="mt-1 w-full text-xs py-1 rounded-md font-mono tracking-wider text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500 transition"
               >
-                --:-- --
-              </button>
+                {TIME_OPTIONS.map(({ value, label }) => (
+                  <option key={value || 'none'} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
