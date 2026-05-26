@@ -8,20 +8,6 @@ import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
 
-const TIME_OPTIONS = (() => {
-  const opts = [{ value: '', label: '--:-- --' }];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m++) {
-      const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-      const ap = h >= 12 ? 'PM' : 'AM';
-      const label = `${h12}:${String(m).padStart(2, '0')} ${ap}`;
-      opts.push({ value, label });
-    }
-  }
-  return opts;
-})();
-
 export default function App() {
   const [logs, setLogs] = useState({});
   const [loaded, setLoaded] = useState(false);
@@ -31,6 +17,12 @@ export default function App() {
   const [workoutUrl, setWorkoutUrl] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
+  const [clearCounter, setClearCounter] = useState({ bedtime: 0, waketime: 0 });
+
+  const clearTimeField = (field) => {
+    saveLog(viewDate, { [field]: '' });
+    setClearCounter(c => ({ ...c, [field]: c[field] + 1 }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -323,28 +315,44 @@ export default function App() {
 
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="min-w-0">
-              <label className="text-xs text-zinc-500 mb-1 block">Bedtime</label>
-              <select
-                value={viewLog.bedtime || ''}
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-zinc-500">Bedtime</label>
+                {viewLog.bedtime && (
+                  <button
+                    onClick={() => clearTimeField('bedtime')}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <input
+                key={`bedtime-${viewKey}-${clearCounter.bedtime}`}
+                type="time"
+                defaultValue={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
-              >
-                {TIME_OPTIONS.map(({ value, label }) => (
-                  <option key={value || 'none'} value={value}>{label}</option>
-                ))}
-              </select>
+              />
             </div>
             <div className="min-w-0">
-              <label className="text-xs text-zinc-500 mb-1 block">{isFuture ? 'Planned wake' : 'Wake'}</label>
-              <select
-                value={viewLog.waketime || ''}
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-zinc-500">{isFuture ? 'Planned wake' : 'Wake'}</label>
+                {viewLog.waketime && (
+                  <button
+                    onClick={() => clearTimeField('waketime')}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 active:text-zinc-200"
+                  >
+                    clear
+                  </button>
+                )}
+              </div>
+              <input
+                key={`waketime-${viewKey}-${clearCounter.waketime}`}
+                type="time"
+                defaultValue={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
                 className="w-full min-w-0 h-12 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
-              >
-                {TIME_OPTIONS.map(({ value, label }) => (
-                  <option key={value || 'none'} value={value}>{label}</option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 

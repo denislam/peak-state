@@ -15,6 +15,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* iOS Safari gives <input type="time"> a built-in min-width on its inner
+   value pseudo-element, which can overflow narrow grid cells on iPhone.
+   Resetting the inner element lets the input respect w-full / min-w-0. */
+input[type="time"] {
+  min-width: 0;
+}
+input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+input[type="time"]::-webkit-datetime-edit {
+  padding: 0;
+}
+
 /* Bottom-sheet slide-in animation (replaces the artifact's animate-in utility) */
 @keyframes slide-in-from-bottom {
   from { transform: translateY(100%); }
