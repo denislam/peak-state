@@ -314,7 +314,7 @@ export default function App() {
                 type="time"
                 value={viewLog.bedtime || ''}
                 onChange={(e) => saveLog(viewDate, { bedtime: e.target.value })}
-                className="w-full min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="w-full min-w-0 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
             </div>
             <div className="min-w-0">
@@ -323,7 +323,7 @@ export default function App() {
                 type="time"
                 value={viewLog.waketime || ''}
                 onChange={(e) => saveLog(viewDate, { waketime: e.target.value })}
-                className="w-full min-w-0 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                className="w-full min-w-0 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
               />
             </div>
           </div>
