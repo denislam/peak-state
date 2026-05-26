@@ -8,7 +8,7 @@ A minimalist gym + sleep tracker built around a Jeff Nippard UL/PPL hybrid split
 - **Day swap** — tap the day label to change today's workout type (won't affect your weekly plan)
 - **Sleep logging** — bedtime, wake time, 1-5 quality rating, plus pre-log bedtime the night before
 - **Streaks & stats** — current streak, weekly compliance, 30-day workout count, 30-day average sleep score
-- **"Start workout" shortcut** — opens a pre-configured Claude chat to guide your session
+- **"Start workout" shortcut** — opens a custom URL you set (Claude chat, YouTube playlist, training app, etc.); configured via the settings gear
 - **Local-only data** — nothing leaves your device (uses `localStorage`)
 
 ## Stack
