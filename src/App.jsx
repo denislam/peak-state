@@ -522,17 +522,27 @@ export default function App() {
             <>
               <div className="grid grid-cols-2 gap-2">
                 {BOTTLES.map(b => (
-                  <button
+                  <div
                     key={b.oz}
-                    onClick={() => addWater(b.oz)}
-                    className="flex flex-col items-center justify-end gap-1.5 pt-3 pb-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 active:scale-95 transition"
+                    className="flex flex-col rounded-xl bg-cyan-500/10 border border-cyan-500/30 overflow-hidden"
                   >
-                    <div className="h-14 flex items-end">
-                      <Bottle size={b.size} />
-                    </div>
-                    <div className="text-cyan-200 font-semibold text-sm leading-none">{b.oz} oz</div>
-                    <div className="text-[10px] text-zinc-500 leading-none">{b.label}</div>
-                  </button>
+                    <button
+                      onClick={() => addWater(b.oz)}
+                      className="flex flex-col items-center justify-end gap-1.5 pt-3 pb-2.5 hover:bg-cyan-500/10 active:scale-95 transition"
+                    >
+                      <div className="h-14 flex items-end">
+                        <Bottle size={b.size} />
+                      </div>
+                      <div className="text-cyan-200 font-semibold text-sm leading-none">{b.oz} oz</div>
+                      <div className="text-[10px] text-zinc-500 leading-none">{b.label}</div>
+                    </button>
+                    <button
+                      onClick={() => addWater(b.oz / 2)}
+                      className="border-t border-cyan-500/20 py-1.5 text-[11px] text-cyan-300/80 hover:bg-cyan-500/10 active:scale-[0.98] transition"
+                    >
+                      + half ({fmtOz(b.oz / 2)} oz)
+                    </button>
+                  </div>
                 ))}
               </div>
 
