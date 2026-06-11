@@ -7,13 +7,12 @@ import { DAY_TYPES, TYPE_ORDER } from './schedule.js';
 import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
+import { parseAmountToOz } from './parseAmount.js';
 
-// Quick-add references modeled on real bottles so the amount is something you
-// can estimate by sight instead of doing oz math. `size` is the drawn bottle
-// height (px), scaled by volume so the bigger bottle visibly holds more.
+// Quick-add references modeled on real bottles the user actually drinks from.
 const BOTTLES = [
-  { oz: 16.9, label: 'bottle', size: 40 },
-  { oz: 25, label: 'large', size: 54 },
+  { oz: 16.9, label: 'bottle' },
+  { oz: 25, label: 'large' },
 ];
 
 // Trim trailing .0 so 16.9 + 25 reads as "41.9" and 8 + 8 reads as "16".
@@ -22,22 +21,68 @@ const fmtOz = (n) => {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 };
 
-// Simple water-bottle glyph; the fill suggests a roughly-full bottle.
-function Bottle({ size = 40 }) {
-  const w = size * 0.46;
-  const clipId = `bottle-clip-${size}`;
+// Total oz logged on a given day's log.
+const dayWaterOz = (log) => (log?.water || []).reduce((s, e) => s + (e.oz || 0), 0);
+
+// Soft visual reference for the weekly hydration bars (no hard goal).
+const WATER_FULL_OZ = 64;
+
+// A horizontal bottle you drag to fill, snapping to 25% steps — the liquid
+// level is the amount you drank, so you set it by sight with no oz math.
+function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
+  const setFromX = (clientX, el) => {
+    const rect = el.getBoundingClientRect();
+    let f = (clientX - rect.left) / rect.width;
+    f = Math.min(1, Math.max(0.25, Math.round(f / 0.25) * 0.25));
+    onChange(f);
+  };
+  const pct = Math.round(value * 100);
   return (
-    <svg width={w} height={size} viewBox="0 0 26 64" fill="none" aria-hidden="true">
-      <defs>
-        <clipPath id={clipId}>
-          <rect x="5" y="10" width="16" height="50" rx="7" />
-        </clipPath>
-      </defs>
-      <rect x="9.5" y="0" width="7" height="4" rx="1.5" fill="#67e8f9" />
-      <rect x="10.5" y="4" width="5" height="6" fill="#155e75" />
-      <rect x="5" y="10" width="16" height="50" rx="7" fill="#0c2b33" stroke="#22d3ee" strokeWidth="1.5" />
-      <rect x="5" y="26" width="16" height="34" fill="#22d3ee" fillOpacity="0.85" clipPath={`url(#${clipId})`} />
-    </svg>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center">
+        <div
+          role="slider"
+          aria-label={`${oz} oz ${label} — amount drunk`}
+          aria-valuemin={25}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+          tabIndex={0}
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setFromX(e.clientX, e.currentTarget); }}
+          onPointerMove={(e) => { if (e.buttons) setFromX(e.clientX, e.currentTarget); }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); onChange(Math.min(1, value + 0.25)); }
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); onChange(Math.max(0.25, value - 0.25)); }
+          }}
+          className="relative flex-1 h-16 rounded-l-2xl rounded-r-md border-2 border-cyan-500/40 bg-cyan-950/30 overflow-hidden touch-none cursor-ew-resize select-none"
+        >
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500/80 to-cyan-300/80"
+            style={{ width: `${value * 100}%` }}
+          />
+          {[0.25, 0.5, 0.75].map(t => (
+            <div key={t} className="absolute top-0 bottom-0 w-px bg-cyan-100/15" style={{ left: `${t * 100}%` }} />
+          ))}
+          <div
+            className="absolute top-1.5 bottom-1.5 w-1 rounded bg-white/90 shadow"
+            style={{ left: `calc(${value * 100}% - 2px)` }}
+          />
+          <div className="absolute inset-0 flex flex-col items-start justify-center px-2.5 pointer-events-none">
+            <span className="text-[9px] font-medium uppercase tracking-wide text-cyan-50/70 leading-none whitespace-nowrap">{oz} oz {label}</span>
+            <span className="text-lg font-bold text-white tabular-nums leading-tight">{fmtOz(oz * value)} oz</span>
+          </div>
+        </div>
+        {/* bottle neck + cap */}
+        <div className="w-1 h-5 bg-cyan-500/40 shrink-0" />
+        <div className="w-2.5 h-8 rounded-r-md bg-cyan-400/60 shrink-0" />
+      </div>
+      <button
+        onClick={onAdd}
+        disabled={disabled}
+        className="h-9 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-bold active:scale-95 transition hover:brightness-110 disabled:opacity-40"
+      >
+        Add
+      </button>
+    </div>
   );
 }
 
@@ -54,6 +99,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('sleep');
   const [customWater, setCustomWater] = useState('');
   const [showCustomWater, setShowCustomWater] = useState(false);
+  const [bottleFill, setBottleFill] = useState({});
 
   // Mirror of logs so rapid successive saves (e.g. quick water taps) chain off
   // the latest data instead of a stale render closure.
@@ -124,11 +170,17 @@ export default function App() {
   };
 
   const addCustomWater = () => {
-    const oz = parseFloat(customWater);
+    const oz = parseAmountToOz(customWater);
     if (!(oz > 0)) return;
     addWater(oz);
     setCustomWater('');
     setShowCustomWater(false);
+  };
+
+  const addBottle = (b) => {
+    const frac = bottleFill[b.oz] ?? 1;
+    addWater(b.oz * frac);
+    setBottleFill(prev => ({ ...prev, [b.oz]: 1 }));
   };
 
   const removeWater = (id) => {
@@ -162,6 +214,7 @@ export default function App() {
 
   const waterEvents = viewLog.water || [];
   const waterTotal = waterEvents.reduce((sum, e) => sum + (e.oz || 0), 0);
+  const customParsedOz = parseAmountToOz(customWater) || 0;
 
   const calcStreak = () => {
     let streak = 0;
@@ -200,6 +253,7 @@ export default function App() {
 
   const monthStats = () => {
     let workouts = 0, sleepSum = 0, sleepCount = 0;
+    let waterToday = 0, waterSum = 0, waterDays = 0;
     for (let i = 0; i < 30; i++) {
       const d = addDays(today, -i);
       const log = logs[dateKey(d)] || {};
@@ -208,10 +262,15 @@ export default function App() {
         sleepSum += log.sleepQuality;
         sleepCount++;
       }
+      const oz = dayWaterOz(log);
+      if (i === 0) waterToday = oz;
+      if (oz > 0) { waterSum += oz; waterDays++; }
     }
     return {
       workouts,
       avgSleep: sleepCount ? (sleepSum / sleepCount).toFixed(1) : '—',
+      waterToday,
+      waterAvg: waterDays ? Math.round(waterSum / waterDays) : 0,
     };
   };
 
@@ -252,7 +311,7 @@ export default function App() {
 
   const streak = loaded ? calcStreak() : 0;
   const { done: weekDone, target: weekTarget } = loaded ? weekStats() : { done: 0, target: 0 };
-  const { workouts: monthWorkouts, avgSleep } = loaded ? monthStats() : { workouts: 0, avgSleep: '—' };
+  const { workouts: monthWorkouts, avgSleep, waterToday, waterAvg } = loaded ? monthStats() : { workouts: 0, avgSleep: '—', waterToday: 0, waterAvg: 0 };
 
   if (!loaded) {
     return (
@@ -520,64 +579,58 @@ export default function App() {
 
           {!isFuture ? (
             <>
+              <div className="text-[11px] text-zinc-500 mb-2">Drag to set how much you drank, then Add.</div>
               <div className="grid grid-cols-2 gap-2">
                 {BOTTLES.map(b => (
-                  <div
+                  <BottleSlider
                     key={b.oz}
-                    className="flex flex-col rounded-xl bg-cyan-500/10 border border-cyan-500/30 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => addWater(b.oz)}
-                      className="flex flex-col items-center justify-end gap-1.5 pt-3 pb-2.5 hover:bg-cyan-500/10 active:scale-95 transition"
-                    >
-                      <div className="h-14 flex items-end">
-                        <Bottle size={b.size} />
-                      </div>
-                      <div className="text-cyan-200 font-semibold text-sm leading-none">{b.oz} oz</div>
-                      <div className="text-[10px] text-zinc-500 leading-none">{b.label}</div>
-                    </button>
-                    <button
-                      onClick={() => addWater(b.oz / 2)}
-                      className="border-t border-cyan-500/20 py-1.5 text-[11px] text-cyan-300/80 hover:bg-cyan-500/10 active:scale-[0.98] transition"
-                    >
-                      + half ({fmtOz(b.oz / 2)} oz)
-                    </button>
-                  </div>
+                    oz={b.oz}
+                    label={b.label}
+                    value={bottleFill[b.oz] ?? 1}
+                    onChange={(f) => setBottleFill(prev => ({ ...prev, [b.oz]: f }))}
+                    onAdd={() => addBottle(b)}
+                  />
                 ))}
               </div>
 
               <button
                 onClick={() => setShowCustomWater(s => !s)}
-                className={`w-full mt-2 py-2.5 rounded-lg border text-xs font-medium active:scale-[0.98] transition ${
+                className={`w-full mt-3 py-2.5 rounded-lg border text-xs font-medium active:scale-[0.98] transition ${
                   showCustomWater
                     ? 'bg-zinc-700 border-zinc-600 text-zinc-100'
                     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
                 }`}
               >
-                + custom amount
+                + something else
               </button>
 
               {showCustomWater && (
-                <div className="flex gap-2 mt-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="1"
-                    step="0.1"
-                    placeholder="oz (e.g. a glass)"
-                    value={customWater}
-                    onChange={(e) => setCustomWater(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') addCustomWater(); }}
-                    className="flex-1 min-w-0 h-11 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-cyan-500 focus:outline-none"
-                    autoFocus
-                  />
-                  <button
-                    onClick={addCustomWater}
-                    disabled={!(parseFloat(customWater) > 0)}
-                    className="px-4 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-semibold active:scale-95 transition disabled:opacity-40"
-                  >
-                    Add
-                  </button>
+                <div className="mt-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. one cup, half a .5L bottle, 500 ml"
+                      value={customWater}
+                      onChange={(e) => setCustomWater(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') addCustomWater(); }}
+                      className="flex-1 min-w-0 h-11 bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-cyan-500 focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={addCustomWater}
+                      disabled={!(customParsedOz > 0)}
+                      className="px-4 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-semibold active:scale-95 transition disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="text-[11px] mt-1.5 h-4 px-1">
+                    {customWater.trim()
+                      ? (customParsedOz > 0
+                          ? <span className="text-cyan-300">≈ {fmtOz(customParsedOz)} oz</span>
+                          : <span className="text-zinc-600">Couldn't read that — try "12 oz", "1 cup", "500 ml"…</span>)
+                      : <span className="text-zinc-600">Type it how you'd say it — converted to oz automatically.</span>}
+                  </div>
                 </div>
               )}
 
@@ -618,7 +671,7 @@ export default function App() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <div className="bg-zinc-900 rounded-xl p-3 border border-zinc-800 text-center">
             <div className="flex items-center justify-center gap-1 text-orange-400 mb-1">
               <Flame size={14} />
@@ -643,13 +696,21 @@ export default function App() {
             <div className="text-xl font-bold">{avgSleep}</div>
             <div className="text-[10px] text-zinc-500">sleep score</div>
           </div>
+          <div className="bg-zinc-900 rounded-xl p-3 border border-zinc-800 text-center">
+            <div className="flex items-center justify-center gap-1 text-cyan-400 mb-1">
+              <Droplets size={14} />
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Today</span>
+            </div>
+            <div className="text-xl font-bold">{waterToday || 0}</div>
+            <div className="text-[10px] text-zinc-500">oz water</div>
+          </div>
         </div>
 
         {/* Weekly grid */}
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs uppercase tracking-widest text-zinc-500">This week</div>
-            <div className="text-[10px] text-zinc-600">{monthWorkouts} workouts / 30 days</div>
+            <div className="text-[10px] text-zinc-600">{monthWorkouts} workouts · {waterAvg} oz/day</div>
           </div>
           <div className="grid grid-cols-7 gap-1.5">
             {week.map(d => {
@@ -694,6 +755,14 @@ export default function App() {
                           n <= log.sleepQuality ? 'bg-indigo-400' : 'bg-zinc-700'
                         }`} />
                       ))}
+                    </div>
+                  )}
+                  {!future && (
+                    <div className="w-6 h-1 rounded-full bg-zinc-800 overflow-hidden mt-1.5">
+                      <div
+                        className="h-full bg-cyan-400 rounded-full"
+                        style={{ width: `${Math.min(100, (dayWaterOz(log) / WATER_FULL_OZ) * 100)}%` }}
+                      />
                     </div>
                   )}
                 </button>
