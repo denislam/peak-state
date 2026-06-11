@@ -7,7 +7,7 @@ import { DAY_TYPES, TYPE_ORDER } from './schedule.js';
 import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
-import { parseAmountToOz } from './parseAmount.js';
+import { estimateHydrationLocal } from './hydration.js';
 
 // Quick-add references modeled on real bottles the user actually drinks from.
 const BOTTLES = [
@@ -99,6 +99,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('sleep');
   const [customWater, setCustomWater] = useState('');
   const [showCustomWater, setShowCustomWater] = useState(false);
+  const [aiOz, setAiOz] = useState(null);
+  const [aiState, setAiState] = useState('idle'); // idle | loading | error | nowater
   const [bottleFill, setBottleFill] = useState({});
 
   // Mirror of logs so rapid successive saves (e.g. quick water taps) chain off
@@ -169,12 +171,40 @@ export default function App() {
     saveLog(viewDate, { water: [...existing, event] });
   };
 
-  const addCustomWater = () => {
-    const oz = parseAmountToOz(customWater);
-    if (!(oz > 0)) return;
-    addWater(oz);
+  const resetCustom = () => {
     setCustomWater('');
     setShowCustomWater(false);
+    setAiOz(null);
+    setAiState('idle');
+  };
+
+  const addCustomWater = () => {
+    const local = estimateHydrationLocal(customWater);
+    const oz = local ? local.oz : aiOz;
+    if (!(oz > 0)) return;
+    addWater(oz);
+    resetCustom();
+  };
+
+  // Falls back to the Claude-backed /api/hydration endpoint when the local
+  // water-content table doesn't recognize the item.
+  const requestAiEstimate = async () => {
+    if (!customWater.trim()) return;
+    setAiState('loading');
+    setAiOz(null);
+    try {
+      const res = await fetch('/api/hydration', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: customWater }),
+      });
+      if (!res.ok) { setAiState('error'); return; }
+      const data = await res.json();
+      if (data.oz > 0) { setAiOz(data.oz); setAiState('idle'); }
+      else setAiState('nowater');
+    } catch {
+      setAiState('error');
+    }
   };
 
   const addBottle = (b) => {
@@ -214,7 +244,8 @@ export default function App() {
 
   const waterEvents = viewLog.water || [];
   const waterTotal = waterEvents.reduce((sum, e) => sum + (e.oz || 0), 0);
-  const customParsedOz = parseAmountToOz(customWater) || 0;
+  const localHydration = estimateHydrationLocal(customWater);
+  const customOz = localHydration ? localHydration.oz : (aiOz || 0);
 
   const calcStreak = () => {
     let streak = 0;
@@ -609,27 +640,42 @@ export default function App() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. one cup, half a .5L bottle, 500 ml"
+                      placeholder="e.g. 1 cup of milk, 12oz smoothie, 500 ml"
                       value={customWater}
-                      onChange={(e) => setCustomWater(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') addCustomWater(); }}
+                      onChange={(e) => { setCustomWater(e.target.value); setAiOz(null); setAiState('idle'); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { customOz > 0 ? addCustomWater() : requestAiEstimate(); } }}
                       className="flex-1 min-w-0 h-11 bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-cyan-500 focus:outline-none"
                       autoFocus
                     />
                     <button
                       onClick={addCustomWater}
-                      disabled={!(customParsedOz > 0)}
+                      disabled={!(customOz > 0)}
                       className="px-4 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-semibold active:scale-95 transition disabled:opacity-40"
                     >
                       Add
                     </button>
                   </div>
-                  <div className="text-[11px] mt-1.5 h-4 px-1">
-                    {customWater.trim()
-                      ? (customParsedOz > 0
-                          ? <span className="text-cyan-300">≈ {fmtOz(customParsedOz)} oz</span>
-                          : <span className="text-zinc-600">Couldn't read that — try "12 oz", "1 cup", "500 ml"…</span>)
-                      : <span className="text-zinc-600">Type it how you'd say it — converted to oz automatically.</span>}
+                  <div className="text-[11px] mt-1.5 min-h-4 px-1 leading-relaxed">
+                    {!customWater.trim() && (
+                      <span className="text-zinc-600">Type a drink or amount — water content is estimated for you.</span>
+                    )}
+                    {customWater.trim() && customOz > 0 && (
+                      <span className="text-cyan-300">
+                        ≈ {fmtOz(customOz)} oz water
+                        {localHydration?.item && (
+                          <span className="text-zinc-500"> · {localHydration.item}{localHydration.assumed ? ' (1 serving)' : ''}</span>
+                        )}
+                        {!localHydration && aiOz != null && <span className="text-zinc-500"> · estimated by Claude</span>}
+                      </span>
+                    )}
+                    {customWater.trim() && customOz === 0 && aiState === 'idle' && (
+                      <button onClick={requestAiEstimate} className="text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
+                        Estimate hydration with AI →
+                      </button>
+                    )}
+                    {aiState === 'loading' && <span className="text-zinc-400">Estimating…</span>}
+                    {aiState === 'nowater' && <span className="text-zinc-500">That doesn't look like it has water content.</span>}
+                    {aiState === 'error' && <span className="text-zinc-500">Couldn't estimate — try a volume like "12 oz".</span>}
                   </div>
                 </div>
               )}

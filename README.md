@@ -46,6 +46,28 @@ Output goes to `dist/`.
    - **Node version:** 20 (set via `NODE_VERSION` env var if needed)
 5. Save and deploy. You'll get a `peak-state.pages.dev` URL — add it to your phone's home screen for app-like access.
 
+## Water hydration estimates (optional Claude fallback)
+
+The Water tab's **"+ something else"** field accepts plain descriptions like
+`1 cup of non-fat milk` or `12oz smoothie`. A built-in water-content table
+(`src/hydration.js`) resolves common drinks instantly and offline. For anything
+it doesn't recognize, the app calls a Cloudflare **Pages Function**
+(`functions/api/hydration.js`) that asks **Claude Haiku 4.5** to estimate the
+water content — the API key stays server-side.
+
+To enable the AI fallback on your deploy:
+
+1. **Add a secret:** Cloudflare dashboard → your Pages project → **Settings →
+   Variables and Secrets** → add `ANTHROPIC_API_KEY` (your Anthropic API key),
+   scoped to Production.
+2. **Enable Node compat:** **Settings → Functions → Compatibility flags** → add
+   `nodejs_compat` (the Anthropic SDK needs it).
+3. Redeploy.
+
+Without the key the endpoint returns `503` and the app simply asks you to enter
+a volume instead — the local table still works. The AI fallback only runs on the
+Cloudflare deploy (not on a static-only preview or `npm run dev`).
+
 ## Configuration
 
 The "Start workout" button opens any URL you set — a Claude chat, a YouTube playlist, your training app, etc. Tap the gear icon in the top-right of the app and paste a URL. It's stored locally per browser.
