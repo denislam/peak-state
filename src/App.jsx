@@ -21,6 +21,12 @@ const fmtOz = (n) => {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 };
 
+// Total oz logged on a given day's log.
+const dayWaterOz = (log) => (log?.water || []).reduce((s, e) => s + (e.oz || 0), 0);
+
+// Soft visual reference for the weekly hydration bars (no hard goal).
+const WATER_FULL_OZ = 64;
+
 // A horizontal bottle you drag to fill, snapping to 25% steps — the liquid
 // level is the amount you drank, so you set it by sight with no oz math.
 function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
@@ -247,6 +253,7 @@ export default function App() {
 
   const monthStats = () => {
     let workouts = 0, sleepSum = 0, sleepCount = 0;
+    let waterToday = 0, waterSum = 0, waterDays = 0;
     for (let i = 0; i < 30; i++) {
       const d = addDays(today, -i);
       const log = logs[dateKey(d)] || {};
@@ -255,10 +262,15 @@ export default function App() {
         sleepSum += log.sleepQuality;
         sleepCount++;
       }
+      const oz = dayWaterOz(log);
+      if (i === 0) waterToday = oz;
+      if (oz > 0) { waterSum += oz; waterDays++; }
     }
     return {
       workouts,
       avgSleep: sleepCount ? (sleepSum / sleepCount).toFixed(1) : '—',
+      waterToday,
+      waterAvg: waterDays ? Math.round(waterSum / waterDays) : 0,
     };
   };
 
@@ -299,7 +311,7 @@ export default function App() {
 
   const streak = loaded ? calcStreak() : 0;
   const { done: weekDone, target: weekTarget } = loaded ? weekStats() : { done: 0, target: 0 };
-  const { workouts: monthWorkouts, avgSleep } = loaded ? monthStats() : { workouts: 0, avgSleep: '—' };
+  const { workouts: monthWorkouts, avgSleep, waterToday, waterAvg } = loaded ? monthStats() : { workouts: 0, avgSleep: '—', waterToday: 0, waterAvg: 0 };
 
   if (!loaded) {
     return (
@@ -659,7 +671,7 @@ export default function App() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <div className="bg-zinc-900 rounded-xl p-3 border border-zinc-800 text-center">
             <div className="flex items-center justify-center gap-1 text-orange-400 mb-1">
               <Flame size={14} />
@@ -684,13 +696,21 @@ export default function App() {
             <div className="text-xl font-bold">{avgSleep}</div>
             <div className="text-[10px] text-zinc-500">sleep score</div>
           </div>
+          <div className="bg-zinc-900 rounded-xl p-3 border border-zinc-800 text-center">
+            <div className="flex items-center justify-center gap-1 text-cyan-400 mb-1">
+              <Droplets size={14} />
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Today</span>
+            </div>
+            <div className="text-xl font-bold">{waterToday || 0}</div>
+            <div className="text-[10px] text-zinc-500">oz water</div>
+          </div>
         </div>
 
         {/* Weekly grid */}
         <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs uppercase tracking-widest text-zinc-500">This week</div>
-            <div className="text-[10px] text-zinc-600">{monthWorkouts} workouts / 30 days</div>
+            <div className="text-[10px] text-zinc-600">{monthWorkouts} workouts · {waterAvg} oz/day</div>
           </div>
           <div className="grid grid-cols-7 gap-1.5">
             {week.map(d => {
@@ -735,6 +755,14 @@ export default function App() {
                           n <= log.sleepQuality ? 'bg-indigo-400' : 'bg-zinc-700'
                         }`} />
                       ))}
+                    </div>
+                  )}
+                  {!future && (
+                    <div className="w-6 h-1 rounded-full bg-zinc-800 overflow-hidden mt-1.5">
+                      <div
+                        className="h-full bg-cyan-400 rounded-full"
+                        style={{ width: `${Math.min(100, (dayWaterOz(log) / WATER_FULL_OZ) * 100)}%` }}
+                      />
                     </div>
                   )}
                 </button>
