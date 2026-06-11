@@ -1,12 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  CheckCircle2, Circle, Dumbbell, ExternalLink, Flame, Moon,
+  CheckCircle2, Circle, Dumbbell, ExternalLink, Flame, Moon, Droplets,
   ChevronLeft, ChevronRight, Bed, X, Pencil, RotateCcw, Settings,
 } from 'lucide-react';
 import { DAY_TYPES, TYPE_ORDER } from './schedule.js';
 import { DEFAULT_SCHEDULE } from './config.js';
 import { dateKey, isSameDay, addDays, startOfWeek } from './dateUtils.js';
 import { storage } from './storage.js';
+
+// Quick-add references modeled on real bottles so the amount is something you
+// can estimate by sight instead of doing oz math. `size` is the drawn bottle
+// height (px), scaled by volume so the bigger bottle visibly holds more.
+const BOTTLES = [
+  { oz: 16.9, label: 'bottle', size: 40 },
+  { oz: 25, label: 'large', size: 54 },
+];
+
+// Trim trailing .0 so 16.9 + 25 reads as "41.9" and 8 + 8 reads as "16".
+const fmtOz = (n) => {
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+};
+
+// Simple water-bottle glyph; the fill suggests a roughly-full bottle.
+function Bottle({ size = 40 }) {
+  const w = size * 0.46;
+  const clipId = `bottle-clip-${size}`;
+  return (
+    <svg width={w} height={size} viewBox="0 0 26 64" fill="none" aria-hidden="true">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x="5" y="10" width="16" height="50" rx="7" />
+        </clipPath>
+      </defs>
+      <rect x="9.5" y="0" width="7" height="4" rx="1.5" fill="#67e8f9" />
+      <rect x="10.5" y="4" width="5" height="6" fill="#155e75" />
+      <rect x="5" y="10" width="16" height="50" rx="7" fill="#0c2b33" stroke="#22d3ee" strokeWidth="1.5" />
+      <rect x="5" y="26" width="16" height="34" fill="#22d3ee" fillOpacity="0.85" clipPath={`url(#${clipId})`} />
+    </svg>
+  );
+}
 
 export default function App() {
   const [logs, setLogs] = useState({});
@@ -18,6 +51,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
   const [clearCounter, setClearCounter] = useState({ bedtime: 0, waketime: 0 });
+  const [activeTab, setActiveTab] = useState('sleep');
+  const [customWater, setCustomWater] = useState('');
+  const [showCustomWater, setShowCustomWater] = useState(false);
+
+  // Mirror of logs so rapid successive saves (e.g. quick water taps) chain off
+  // the latest data instead of a stale render closure.
+  const logsRef = useRef({});
+  useEffect(() => { logsRef.current = logs; }, [logs]);
 
   const clearTimeField = (field) => {
     saveLog(viewDate, { [field]: '' });
@@ -26,24 +67,26 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const finish = (data, url) => {
+    const finish = (data, url, tab) => {
       if (cancelled) return;
-      if (data) setLogs(data);
+      if (data) { setLogs(data); logsRef.current = data; }
       if (url) setWorkoutUrl(url);
+      if (tab === 'sleep' || tab === 'water') setActiveTab(tab);
       setLoaded(true);
     };
-    const timeout = setTimeout(() => finish(null, ''), 2500);
+    const timeout = setTimeout(() => finish(null, '', ''), 2500);
     (async () => {
       try {
-        const [data, url] = await Promise.all([
+        const [data, url, tab] = await Promise.all([
           storage.getLogs(),
           storage.getWorkoutUrl(),
+          storage.getActiveTab(),
         ]);
         clearTimeout(timeout);
-        finish(data, url);
+        finish(data, url, tab);
       } catch {
         clearTimeout(timeout);
-        finish(null, '');
+        finish(null, '', '');
       }
     })();
     return () => { cancelled = true; clearTimeout(timeout); };
@@ -51,10 +94,46 @@ export default function App() {
 
   const saveLog = async (date, updates) => {
     const key = dateKey(date);
-    const next = { ...logs, [key]: { ...(logs[key] || {}), ...updates } };
+    const base = logsRef.current;
+    const next = { ...base, [key]: { ...(base[key] || {}), ...updates } };
+    logsRef.current = next; // chain rapid saves before the re-render commits
     setLogs(next);
     const ok = await storage.setLogs(next);
     setSaveError(!ok);
+  };
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    storage.setActiveTab(tab);
+  };
+
+  const fmtTime = (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  const addWater = (oz) => {
+    if (isFuture || !(oz > 0)) return;
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const event = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, oz, time };
+    const existing = (logsRef.current[viewKey]?.water) || [];
+    saveLog(viewDate, { water: [...existing, event] });
+  };
+
+  const addCustomWater = () => {
+    const oz = parseFloat(customWater);
+    if (!(oz > 0)) return;
+    addWater(oz);
+    setCustomWater('');
+    setShowCustomWater(false);
+  };
+
+  const removeWater = (id) => {
+    const existing = (logsRef.current[viewKey]?.water) || [];
+    saveLog(viewDate, { water: existing.filter(e => e.id !== id) });
   };
 
   const getDayInfo = (date) => {
@@ -80,6 +159,9 @@ export default function App() {
   const sleepLabel = isFuture
     ? (isTomorrow ? "Tonight's sleep" : 'Planned sleep')
     : (isToday ? 'Sleep last night' : 'Sleep that night');
+
+  const waterEvents = viewLog.water || [];
+  const waterTotal = waterEvents.reduce((sum, e) => sum + (e.oz || 0), 0);
 
   const calcStreak = () => {
     let streak = 0;
@@ -299,8 +381,32 @@ export default function App() {
           )}
         </div>
 
-        {/* Sleep Card */}
+        {/* Sleep + Water Card */}
         <div className="bg-zinc-900 rounded-2xl p-5 mb-4 border border-zinc-800">
+          {/* Tab switcher */}
+          <div className="grid grid-cols-2 gap-1 mb-4 bg-zinc-950/50 p-1 rounded-xl">
+            <button
+              onClick={() => selectTab('sleep')}
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition active:scale-[0.98] ${
+                activeTab === 'sleep' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Moon size={14} className={activeTab === 'sleep' ? 'text-indigo-400' : ''} />
+              Sleep
+            </button>
+            <button
+              onClick={() => selectTab('water')}
+              className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition active:scale-[0.98] ${
+                activeTab === 'water' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Droplets size={14} className={activeTab === 'water' ? 'text-cyan-400' : ''} />
+              Water
+            </button>
+          </div>
+
+          {activeTab === 'sleep' && (
+          <>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Moon size={16} className="text-indigo-400" />
@@ -393,6 +499,121 @@ export default function App() {
               <Moon size={12} />
               Pre-log tonight's bedtime →
             </button>
+          )}
+          </>
+          )}
+
+          {activeTab === 'water' && (
+          <>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-cyan-300">{fmtOz(waterTotal)}</span>
+                <span className="text-sm text-zinc-500">oz</span>
+              </div>
+              <div className="text-[11px] text-zinc-500 mt-0.5">
+                {waterEvents.length} {waterEvents.length === 1 ? 'drink' : 'drinks'}{isToday ? ' today' : ''}
+              </div>
+            </div>
+            <Droplets size={28} className="text-cyan-500/40" />
+          </div>
+
+          {!isFuture ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                {BOTTLES.map(b => (
+                  <div
+                    key={b.oz}
+                    className="flex flex-col rounded-xl bg-cyan-500/10 border border-cyan-500/30 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => addWater(b.oz)}
+                      className="flex flex-col items-center justify-end gap-1.5 pt-3 pb-2.5 hover:bg-cyan-500/10 active:scale-95 transition"
+                    >
+                      <div className="h-14 flex items-end">
+                        <Bottle size={b.size} />
+                      </div>
+                      <div className="text-cyan-200 font-semibold text-sm leading-none">{b.oz} oz</div>
+                      <div className="text-[10px] text-zinc-500 leading-none">{b.label}</div>
+                    </button>
+                    <button
+                      onClick={() => addWater(b.oz / 2)}
+                      className="border-t border-cyan-500/20 py-1.5 text-[11px] text-cyan-300/80 hover:bg-cyan-500/10 active:scale-[0.98] transition"
+                    >
+                      + half ({fmtOz(b.oz / 2)} oz)
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setShowCustomWater(s => !s)}
+                className={`w-full mt-2 py-2.5 rounded-lg border text-xs font-medium active:scale-[0.98] transition ${
+                  showCustomWater
+                    ? 'bg-zinc-700 border-zinc-600 text-zinc-100'
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                + custom amount
+              </button>
+
+              {showCustomWater && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="1"
+                    step="0.1"
+                    placeholder="oz (e.g. a glass)"
+                    value={customWater}
+                    onChange={(e) => setCustomWater(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addCustomWater(); }}
+                    className="flex-1 min-w-0 h-11 appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-cyan-500 focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={addCustomWater}
+                    disabled={!(parseFloat(customWater) > 0)}
+                    className="px-4 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-semibold active:scale-95 transition disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
+              {waterEvents.length > 0 ? (
+                <div className="mt-4 space-y-1">
+                  {[...waterEvents].reverse().map(ev => (
+                    <div key={ev.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-zinc-800/50">
+                      <div className="flex items-center gap-2">
+                        <Droplets size={13} className="text-cyan-400/70" />
+                        <span className="text-sm text-zinc-200">{fmtOz(ev.oz)} oz</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-zinc-500">{fmtTime(ev.time)}</span>
+                        <button
+                          onClick={() => removeWater(ev.id)}
+                          aria-label="Remove entry"
+                          className="text-zinc-600 hover:text-zinc-300 active:text-zinc-100"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 text-center text-[11px] text-zinc-600 py-3">
+                  Tap a bottle each time you finish one — the time is logged automatically.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-[11px] text-zinc-500 leading-relaxed bg-zinc-800/40 rounded-lg p-3">
+              💧 Log water on the day itself — navigate back to today to track hydration.
+            </div>
+          )}
+          </>
           )}
         </div>
 

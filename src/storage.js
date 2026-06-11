@@ -3,6 +3,7 @@
 
 const KEY = 'daily-logs';
 const URL_KEY = 'workout-url';
+const TAB_KEY = 'active-tab';
 
 export const storage = {
   async getLogs() {
@@ -32,6 +33,21 @@ export const storage = {
     try {
       if (url) localStorage.setItem(URL_KEY, url);
       else localStorage.removeItem(URL_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async getActiveTab() {
+    try {
+      return localStorage.getItem(TAB_KEY) || '';
+    } catch {
+      return '';
+    }
+  },
+  async setActiveTab(tab) {
+    try {
+      localStorage.setItem(TAB_KEY, tab);
       return true;
     } catch {
       return false;
