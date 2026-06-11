@@ -38,8 +38,8 @@ function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
   };
   const pct = Math.round(value * 100);
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 flex items-center">
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center">
         <div
           role="slider"
           aria-label={`${oz} oz ${label} — amount drunk`}
@@ -53,7 +53,7 @@ function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
             if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); onChange(Math.min(1, value + 0.25)); }
             if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); onChange(Math.max(0.25, value - 0.25)); }
           }}
-          className="relative flex-1 h-14 rounded-l-2xl rounded-r-md border-2 border-cyan-500/40 bg-cyan-950/30 overflow-hidden touch-none cursor-ew-resize select-none"
+          className="relative flex-1 h-16 rounded-l-2xl rounded-r-md border-2 border-cyan-500/40 bg-cyan-950/30 overflow-hidden touch-none cursor-ew-resize select-none"
         >
           <div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500/80 to-cyan-300/80"
@@ -66,9 +66,9 @@ function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
             className="absolute top-1.5 bottom-1.5 w-1 rounded bg-white/90 shadow"
             style={{ left: `calc(${value * 100}% - 2px)` }}
           />
-          <div className="absolute inset-0 flex items-center justify-between px-3 pointer-events-none">
-            <span className="text-xs font-medium text-cyan-50/90">{oz} oz {label}</span>
-            <span className="text-sm font-bold text-white tabular-nums">{fmtOz(oz * value)} oz</span>
+          <div className="absolute inset-0 flex flex-col items-start justify-center px-2.5 pointer-events-none">
+            <span className="text-[9px] font-medium uppercase tracking-wide text-cyan-50/70 leading-none whitespace-nowrap">{oz} oz {label}</span>
+            <span className="text-lg font-bold text-white tabular-nums leading-tight">{fmtOz(oz * value)} oz</span>
           </div>
         </div>
         {/* bottle neck + cap */}
@@ -78,7 +78,7 @@ function BottleSlider({ oz, label, value, onChange, onAdd, disabled }) {
       <button
         onClick={onAdd}
         disabled={disabled}
-        className="shrink-0 h-14 px-4 rounded-xl bg-cyan-500 text-zinc-950 text-sm font-bold active:scale-95 transition hover:brightness-110 disabled:opacity-40"
+        className="h-9 rounded-lg bg-cyan-500 text-zinc-950 text-sm font-bold active:scale-95 transition hover:brightness-110 disabled:opacity-40"
       >
         Add
       </button>
@@ -580,7 +580,7 @@ export default function App() {
           {!isFuture ? (
             <>
               <div className="text-[11px] text-zinc-500 mb-2">Drag to set how much you drank, then Add.</div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
                 {BOTTLES.map(b => (
                   <BottleSlider
                     key={b.oz}
